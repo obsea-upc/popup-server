@@ -1,0 +1,7 @@
+popup-gpios:
+  # syntax: <pop-up ID>:<GPIO num>
+  - "1:12"
+  - "2:11"
+  - "3:10"
+release_time_secs: 1
+max_release_time_secs: 20
