@@ -1,5 +1,5 @@
 popup-gpios:
-  # syntax: <pop-up ID>:<GPIO num>
+  # syntax: <pop-up ID>:<GPIO num> ALERT! It is not the GPIO num but the RPI pin num
   - "1:12"
   - "2:11"
   - "3:10"
