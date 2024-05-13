@@ -5,3 +5,4 @@ popup-gpios:
   - "3:10"
 release_time_secs: 1
 max_release_time_secs: 20
+pop_status_file: "/home/pop/plome-popup-server/popup-buoys.json"
