@@ -102,7 +102,7 @@ def ping_host(host):
     except subprocess.TimeoutExpired:
         return False
 
-def release_thread(popup_id: int, release_time: float, max_release_time: float, client_ip: str):
+def release_thread(popup_id: int, release_time: float, max_release_time: float, client_ip: str, popup_status_file: str):
     """
     This will release the
     :param popup_id:
@@ -124,9 +124,22 @@ def release_thread(popup_id: int, release_time: float, max_release_time: float, 
             break
     GPIO.output(pin, GPIO.LOW)
     if timeout:
-        log.info(RED + f"Release cycle failed!!  pop-up id={popup_id} ip={client_ip}" + RST)
+        log.error(RED + f"Release cycle failed!!  pop-up id={popup_id} ip={client_ip}" + RST)
     else:
-        log.error(GRN + f"Finishing with id={popup_id} release cycle" + RST)
+        log.info(GRN + f"Released finished id={popup_id}" + RST)
+
+        log.info(f"Updating status file {popup_status_file}")
+
+
+        with open(popup_status_file) as f:
+            status = json.load(f)
+        popup_status[str(popup_id)] = True
+        status["releasedBuoys"][str(popup_id)] = True
+
+        with open(popup_status_file, "w") as f:
+            f.write(json.dumps(status, indent=2))
+
+
 
 
 def release_popup(popup_id: str, client_ip):
@@ -135,7 +148,8 @@ def release_popup(popup_id: str, client_ip):
         log.error(RED + f"pop-up with id: {popup_id} not registered!" + RST)
         return False
     else:
-        t = Thread(target=release_thread, args=(popup_id, release_time, max_release_time, client_ip), daemon=True)
+        t = Thread(target=release_thread, args=(popup_id, release_time, max_release_time, client_ip,
+                                                popup_status_file), daemon=True)
         t.start()
         return True
 
@@ -153,6 +167,22 @@ def release_callback(popup_id: str):
         return Response(json.dumps({"success": False, "message": "pop-up release failed"}), status=500, mimetype="application/json")
 
 
+def shutdown_system():
+    time.sleep(5)
+    os.system("sudo shutdown -h")
+
+
+@app.route('/control/shutdown', methods=['GET'])
+def shutdown_callback():
+
+    log.info(f"Received shutdown request, power off the system!")
+    t = Thread(target=shutdown_system, args=())
+    t.start()
+    return Response(json.dumps({"success": True, "message": "success"}), status=200,
+                    mimetype="application/json")
+
+
+
 if __name__ == "__main__":
     log = setup_log("popup-server")
     log.info("Loading config.yaml")
@@ -167,6 +197,22 @@ if __name__ == "__main__":
         key, value = line.split(":")
         popups_pins[key] = value
 
+
+    popup_status_file = config["pop_status_file"]
+
+    if not os.path.exists(popup_status_file):
+        log.info("Generating status file")
+        status = {"releasedBuoys": {}}
+        for popup_id in popups_pins.keys():
+            status["releasedBuoys"][str(popup_id)] = False
+        with open(popup_status_file, "w") as f:
+            f.write(json.dumps(status, indent=2))
+    else:
+        with open(popup_status_file) as f:
+            popup_status =  json.load(f)
+        log.info(f"popup status already exists released status:")
+        for key, value in popup_status["releasedBuoys"].items():
+            log.info(f"    popup buoy '{key}' released: {value}")
 
     log.info("Setting all GIPOs to low")
     for pin in popups_pins.values():
