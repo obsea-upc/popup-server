@@ -169,7 +169,7 @@ def release_callback(popup_id: str):
 
 def shutdown_system():
     time.sleep(5)
-    os.system("sudo shutdown -h")
+    os.system("sudo poweroff")
 
 
 @app.route('/control/shutdown', methods=['GET'])
