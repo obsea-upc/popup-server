@@ -2,7 +2,7 @@
 """
 
 author: Enoc Martínez
-modify: Daniel M. Toma
+modify: Daniel M. Toma 07/10/2024
 institution: Universitat Politècnica de Catalunya (UPC)
 email: enoc.martinez@upc.edu
 license: MIT
@@ -262,7 +262,39 @@ def get_permission_status(popup_id: str):
         return Response(json.dumps({"success": False, "message": f"popup_id {popup_id} not found"}), 
                         status=404, 
                         mimetype="application/json")
+# Function to get the current time
+def get_current_time_details():
+    now = datetime.now()
+    current_time = {
+        "year": now.year,
+        "month": now.month,
+        "day": now.day,
+        "hour": now.hour,
+        "minute": now.minute,
+        "second": now.second
+    }
+    return current_time
+
+# Flask route to get the current time
+@app.route('/gettime', methods=['GET'])
+def get_time_status():
+    try:
+        # Get the current time details
+        current_time = get_current_time_details()
+
+        # Return a successful response with the current time
+        return Response(json.dumps({
+            "success": True,
+            "current_time": current_time
+        }), status=200, mimetype="application/json")
     
+    except Exception as e:
+        # Handle errors and return an error response
+        return Response(json.dumps({
+            "success": False,
+            "message": f"Error getting current time: {str(e)}"
+        }), status=500, mimetype="application/json")
+      
 # Shutdown execution method
 def shutdown_system():
     time.sleep(5)
