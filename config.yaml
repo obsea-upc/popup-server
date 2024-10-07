@@ -1,8 +1,19 @@
-popup-gpios:
-  # syntax: <pop-up ID>:<GPIO num> ALERT! It is not the GPIO num but the RPI pin num
-  - "1:12"
-  - "2:11"
-  - "3:10"
+popup_parameters:
+  - id: 1
+    gpio: 12
+    date: "2024/10/07 16:30:00"
+    releaseMode: "DM"
+  - id: 2
+    gpio: 11
+    date: "2024/10/07 17:00:00"
+    releaseMode: "DM"
+  - id: 3
+    gpio: 10
+    date: "2024/10/07 18:30:00"
+    releaseMode: "FRM"
+
+sampling_time_hours: 1
 release_time_secs: 1
 max_release_time_secs: 20
+offset_seconds: 3600  # Example: offset of 1 hour (3600 seconds)
 pop_status_file: "/home/pop/plome-popup-server/popup-buoys.json"
