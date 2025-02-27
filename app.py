@@ -225,7 +225,7 @@ def get_permission_status(popup_id: str):
             "success": True, 
             "popup_id": popup_id, 
             "permission": nopermission,
-        }), status=403, mimetype="application/json")
+        }), status=200, mimetype="application/json")
     
 if __name__ == "__main__":
     log = setup_log("popup-server")
