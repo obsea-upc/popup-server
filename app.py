@@ -13,13 +13,18 @@ import json
 import os
 import logging
 from logging.handlers import TimedRotatingFileHandler
-import RPi.GPIO as GPIO
 import yaml
 from threading import Thread
 import time
 import subprocess
 import shutil
 from datetime import datetime, timedelta, timezone
+import rich
+try:
+    import RPi.GPIO as GPIO
+except ImportError:
+    rich.print(f"[red]RPi.GPIO not found, running in test mode!")
+    GPIO = None
 
 app = Flask(__name__)
 
@@ -166,6 +171,41 @@ def shutdown_system():
     time.sleep(5)
     os.system("sudo poweroff")
 
+test_distance_mm = -999
+
+@app.route('/distance_set_mm/<distance_mm>', methods=['GET'])
+def distance_set_mm(distance_mm):
+    global test_distance_mm
+    log.info(f"Setting distance to {distance_mm} mm")
+    test_distance_mm = distance_mm
+    return Response(json.dumps({"success": True, "message": f"test distance is {test_distance_mm} mm"}), status=200, mimetype="application/json")
+
+@app.route('/distance_get_mm', methods=['GET'])
+def distance_get_mm():
+    log.info(f"Getting distance, currently {test_distance_mm} mm")
+    return Response(json.dumps({"success": True, "distance": f"{test_distance_mm}", "units": "mm"}), status=200, mimetype="application/json")
+
+init_time = None
+
+@app.route('/init_distance_test', methods=['GET'])
+def init_distance_test():
+    global init_time
+    init_time = time.time()
+    log.info(f"Starting distance test at distance {test_distance_mm} mm")
+    return Response(json.dumps({"success": True, "message": f"init test"}), status=200, mimetype="application/json")
+
+
+@app.route('/end_distance_test', methods=['GET'])
+def end_distance_test():
+    global init_time
+    global test_distance_mm
+    log.info(f"Ending distance test, time elapsed: {time.time() - init_time:03f} s")
+    test_distance_mm = -999
+    init_time = None
+    return Response(json.dumps({"success": True, "distance": f"{test_distance_mm}", "units": "mm"}), status=200, mimetype="application/json")
+
+
+
 # Update the paths to point to the FTP directory
 FTP_BASE_PATH = os.path.expanduser('~/FTP')
 SOURCE_FOLDER = os.path.join(FTP_BASE_PATH, 'PopUpBuoy')
@@ -242,9 +282,12 @@ if __name__ == "__main__":
         popups_pins[popup_id] = gpio
         log.info(f"    popup_id: {popup_id} popups_pins: {popups_pins[popup_id]}")
 
-    for pin in popups_pins.values():
-        GPIO.setmode(GPIO.BOARD)
-        GPIO.setup(int(pin), GPIO.OUT)
-        GPIO.output(int(pin), GPIO.LOW)
+    if not GPIO:
+        rich.print(f"[yellow]Not a raspberry pi, GPIO not available.")
+    else:
+        for pin in popups_pins.values():
+            GPIO.setmode(GPIO.BOARD)
+            GPIO.setup(int(pin), GPIO.OUT)
+            GPIO.output(int(pin), GPIO.LOW)
 
-    app.run(host="0.0.0.0", debug=True)
+    app.run(host="0.0.0.0", debug=True, port=5000)
