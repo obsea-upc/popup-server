@@ -177,7 +177,7 @@ test_distance_mm = -999
 def distance_set_mm(distance_mm):
     global test_distance_mm
     log.info(f"Setting distance to {distance_mm} mm")
-    test_distance_mm = distance_mm
+    test_distance_mm = int(distance_mm)
     return Response(json.dumps({"success": True, "message": f"test distance is {test_distance_mm} mm"}), status=200, mimetype="application/json")
 
 @app.route('/distance_get_mm', methods=['GET'])
@@ -199,10 +199,22 @@ def init_distance_test():
 def end_distance_test():
     global init_time
     global test_distance_mm
-    log.info(f"Ending distance test, time elapsed: {time.time() - init_time:03f} s")
+    if isinstance(init_time, type(None)):
+        log.info("Cancel distance test")
+    else:
+        log.info(f"Ending distance test, time elapsed: {time.time() - init_time:03f} s")
     test_distance_mm = -999
     init_time = None
     return Response(json.dumps({"success": True, "distance": f"{test_distance_mm}", "units": "mm"}), status=200, mimetype="application/json")
+
+@app.route('/init_distance_test_permission', methods=['GET'])
+def init_distance_test_permission():
+    global test_distance_mm
+    if test_distance_mm < 0:
+        return Response(json.dumps({"permission": False}), status=200, mimetype="application/json")
+    else:
+        return Response(json.dumps({"permission": True}), status=200, mimetype="application/json")
+
 
 
 
