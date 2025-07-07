@@ -190,6 +190,13 @@ def shutdown_callback():
     Thread(target=shutdown_system, daemon=True).start()
     return Response(json.dumps({"success": True, "message": "success"}), status=200, mimetype="application/json")
 
+@app.route("/getsynctime", methods=["GET"])
+def get_sync_time():
+    log.info(f"Getting sync time from config")
+    config = load_config()
+    resp = {"sync_time": config["sync_time"]}
+    return Response(json.dumps(resp), status=200, mimetype="application/json")
+
 @app.route('/permission/<popup_id>', methods=['GET'])
 def get_permission_status(popup_id: str):
     config = load_config()
