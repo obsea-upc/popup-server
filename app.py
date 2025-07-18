@@ -20,6 +20,7 @@ import time
 import subprocess
 import shutil
 from datetime import datetime, timedelta, timezone
+import pandas as pd
 
 app = Flask(__name__)
 
@@ -28,6 +29,44 @@ GRN = "\x1B[32m"
 RST = "\033[0m"
 YEL = "\x1B[33m"
 RED = "\x1B[31m"
+
+
+def init_buoy_status_file(config: dict, status_file="log/status.tab"):
+    """
+    Initializes buoy status file
+    :param config:
+    :param status_file:
+    :return:
+    """
+    if os.path.exists(status_file):
+        log.info(f"Buoy status log already exists! {status_file}")
+        return
+
+    lines = []
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    log.info(f"Creating buoy status file: {status_file}")
+    for buoy in config["popup_parameters"]:
+        lines.append({
+            "id": int(buoy["id"]),
+            "time": now,
+            "status": "I"  # init
+        })
+
+    df = pd.DataFrame(lines)
+    df.to_csv(status_file, header=False, index=False, sep="\t")
+
+
+def update_buoy_status_file(buoy_id: int, status: str, status_file="log/status.tab"):
+    buoy_id = int(buoy_id)
+    log.info(f"Updating status '{status}' for buoy {buoy_id}")
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    df = pd.read_csv(status_file, names=["id", "time", "status"], sep="\t")
+    df["id"] = df["id"].astype(int)
+    # update the row!
+    df.loc[df["id"] == buoy_id, "time"] = now
+    df.loc[df["id"] == buoy_id, "status"] = status
+    df.to_csv(status_file, header=False, index=False, sep="\t")
+
 
 def setup_log(name, path="log", log_level="debug"):
     """
@@ -39,7 +78,8 @@ def setup_log(name, path="log", log_level="debug"):
     logger = logging.getLogger()
     logger.setLevel(getattr(logging, log_level.upper()))
     handler = TimedRotatingFileHandler(filename, when="midnight", interval=1, backupCount=7)
-    handler.setFormatter(logging.Formatter('%(asctime)s.%(msecs)03d %(levelname)-7s: %(message)s', datefmt='%Y/%m/%d %H:%M:%S'))
+    handler.setFormatter(
+        logging.Formatter('%(asctime)s.%(msecs)03d %(levelname)-7s: %(message)s', datefmt='%Y/%m/%d %H:%M:%S'))
     logger.addHandler(handler)
     console_handler = logging.StreamHandler()
     console_handler.setFormatter(handler.formatter)
@@ -47,15 +87,18 @@ def setup_log(name, path="log", log_level="debug"):
     logger.info(f"===== {name} initialized =====")
     return logger
 
+
 def load_config():
     """Loads the YAML configuration file."""
     with open("config.yaml", "r") as f:
         return yaml.safe_load(f)
 
+
 def save_config(config):
     """Saves the modified YAML configuration back to the file."""
     with open("config.yaml", "w") as f:
         yaml.dump(config, f)
+
 
 def ping_host(host):
     try:
@@ -64,12 +107,14 @@ def ping_host(host):
     except subprocess.TimeoutExpired:
         return False
 
+
 def release_thread(popup_id: str, release_time: float, max_release_time: float, client_ip: str):
     """
     Handles the release process for the specified popup_id
     """
     pin = int(popups_pins[popup_id])
     log.info(f"Activating pin {pin} to release popup={popup_id}")
+    update_buoy_status_file(popup_id, "A")
     GPIO.output(pin, GPIO.HIGH)
     time.sleep(release_time)
     init = time.time()
@@ -85,13 +130,15 @@ def release_thread(popup_id: str, release_time: float, max_release_time: float, 
         log.error(RED + f"Release cycle failed!!  pop-up id={popup_id} ip={client_ip}" + RST)
     else:
         log.info(GRN + f"Released finished id={popup_id}" + RST)
-        
+
         config = load_config()
         popup_entry = next((popup for popup in config["popup_parameters"] if str(popup["id"]) == popup_id), None)
         if popup_entry:
             popup_entry["released"] = True
             save_config(config)
             log.info(f"Updated released status for popup_id {popup_id} to True")
+            update_buoy_status_file(popup_id, "R")
+
 
 def release_popup(popup_id: str, client_ip):
     popup_id = str(popup_id)
@@ -104,17 +151,20 @@ def release_popup(popup_id: str, client_ip):
         t.start()
         return True
 
+
 @app.route('/release/<popup_id>', methods=['GET'])
 def release_callback(popup_id: str):
     client_ip = request.remote_addr
     log.info(f"Received release request from {client_ip} with popup_id={popup_id}")
     ret = release_popup(popup_id, client_ip)
-    return Response(json.dumps({"success": ret, "message": "success" if ret else "pop-up release failed"}), 
+    return Response(json.dumps({"success": ret, "message": "success" if ret else "pop-up release failed"}),
                     status=200 if ret else 500, mimetype="application/json")
+
 
 # FTP directories
 FTP_BASE_PATH = os.path.expanduser('~/FTP')
 SOURCE_FOLDER = os.path.join(FTP_BASE_PATH, 'PopUpBuoy')
+
 
 @app.route('/upload/<popup_id>', methods=['GET'])
 def upload_files(popup_id: str):
@@ -125,7 +175,8 @@ def upload_files(popup_id: str):
 
     if not os.path.exists(source_folder):
         log.error(RED + f"Source folder '{source_folder}' does not exist!" + RST)
-        return Response(json.dumps({"success": False, "message": "Source folder does not exist"}), status=500, mimetype="application/json")
+        return Response(json.dumps({"success": False, "message": "Source folder does not exist"}), status=500,
+                        mimetype="application/json")
 
     if not os.path.exists(destination_folder):
         os.makedirs(destination_folder)
@@ -137,38 +188,51 @@ def upload_files(popup_id: str):
         for filename in os.listdir(source_folder):
             file_path = os.path.join(source_folder, filename)
             os.remove(file_path)
-        return Response(json.dumps({"success": True, "message": "Files uploaded and source folder cleared"}), status=200, mimetype="application/json")
+        return Response(json.dumps({"success": True, "message": "Files uploaded and source folder cleared"}),
+                        status=200, mimetype="application/json")
     except Exception as e:
         log.error(RED + f"Error while copying files: {str(e)}" + RST)
-        return Response(json.dumps({"success": False, "message": f"Error during file upload: {str(e)}"}), status=500, mimetype="application/json")
+        return Response(json.dumps({"success": False, "message": f"Error during file upload: {str(e)}"}), status=500,
+                        mimetype="application/json")
+
 
 # Function to get the current time
 def get_current_time_details():
     now = datetime.now(timezone.utc)
-    return {"year": now.year, "month": now.month, "day": now.day, "hour": now.hour, "minute": now.minute, "second": now.second}
+    return {"year": now.year, "month": now.month, "day": now.day, "hour": now.hour, "minute": now.minute,
+            "second": now.second}
+
 
 @app.route('/gettime', methods=['GET'])
 def get_time_status():
     try:
-        return Response(json.dumps({"success": True, "current_time": get_current_time_details()}), status=200, mimetype="application/json")
+        return Response(json.dumps({"success": True, "current_time": get_current_time_details()}), status=200,
+                        mimetype="application/json")
     except Exception as e:
-        return Response(json.dumps({"success": False, "message": f"Error getting current time: {str(e)}"}), status=500, mimetype="application/json")
+        return Response(json.dumps({"success": False, "message": f"Error getting current time: {str(e)}"}), status=500,
+                        mimetype="application/json")
+
 
 @app.route('/control/reboot', methods=['GET', 'POST'])
 def reboot_system():
     try:
         subprocess.run(["sudo", "reboot"], check=True)
-        return Response(json.dumps({"success": True, "message": "Reboot command issued. System is rebooting."}), status=200, mimetype="application/json")
+        return Response(json.dumps({"success": True, "message": "Reboot command issued. System is rebooting."}),
+                        status=200, mimetype="application/json")
     except subprocess.CalledProcessError as e:
-        return Response(json.dumps({"success": False, "message": f"Failed to issue reboot command: {str(e)}"}), status=500, mimetype="application/json")
+        return Response(json.dumps({"success": False, "message": f"Failed to issue reboot command: {str(e)}"}),
+                        status=500, mimetype="application/json")
+
 
 def shutdown_system():
     time.sleep(5)
     os.system("sudo poweroff")
 
+
 # Update the paths to point to the FTP directory
 FTP_BASE_PATH = os.path.expanduser('~/FTP')
 SOURCE_FOLDER = os.path.join(FTP_BASE_PATH, 'PopUpBuoy')
+
 
 def copy_and_delete_files(popup_id):
     """Copies files from 'PopUpBuoy' to 'PopUpBuoy_<popup_id>' and deletes the original files."""
@@ -183,12 +247,14 @@ def copy_and_delete_files(popup_id):
 
     for filename in os.listdir(SOURCE_FOLDER):
         os.remove(os.path.join(SOURCE_FOLDER, filename))
-        
+
+
 @app.route('/control/shutdown', methods=['GET'])
 def shutdown_callback():
     log.info(f"Received shutdown request, powering off!")
     Thread(target=shutdown_system, daemon=True).start()
     return Response(json.dumps({"success": True, "message": "success"}), status=200, mimetype="application/json")
+
 
 @app.route("/getsynctime", methods=["GET"])
 def get_sync_time():
@@ -197,17 +263,25 @@ def get_sync_time():
     resp = {"sync_time": config["sync_time"]}
     return Response(json.dumps(resp), status=200, mimetype="application/json")
 
+
+@app.route("/getsynctime/<popup_id>", methods=["GET"])
+def get_sync_time_with_id(popup_id):
+    update_buoy_status_file(popup_id, "S")
+    return get_sync_time()
+
+
 @app.route('/permission/<popup_id>', methods=['GET'])
 def get_permission_status(popup_id: str):
     config = load_config()
     popup_entry = next((popup for popup in config["popup_parameters"] if str(popup["id"]) == popup_id), None)
-    
+
     if not popup_entry:
-        return Response(json.dumps({"success": False, "message": f"popup_id {popup_id} not found"}), 
+        return Response(json.dumps({"success": False, "message": f"popup_id {popup_id} not found"}),
                         status=404, mimetype="application/json")
 
     release_date = datetime.strptime(popup_entry["date"], '%Y/%m/%d %H:%M:%S')
     current_time = datetime.now()
+    update_buoy_status_file(popup_id, "P")
 
     if current_time >= release_date:
         permission = {
@@ -217,8 +291,8 @@ def get_permission_status(popup_id: str):
             "sleeptime_m": popup_entry["sleeptime_m"],
         }
         return Response(json.dumps({
-            "success": True, 
-            "popup_id": popup_id, 
+            "success": True,
+            "popup_id": popup_id,
             "permission": permission,
         }), status=200, mimetype="application/json")
     else:
@@ -229,15 +303,17 @@ def get_permission_status(popup_id: str):
             "sleeptime_m": popup_entry["sleeptime_m"],
         }
         return Response(json.dumps({
-            "success": True, 
-            "popup_id": popup_id, 
+            "success": True,
+            "popup_id": popup_id,
             "permission": nopermission,
         }), status=200, mimetype="application/json")
-    
+
+
 if __name__ == "__main__":
     log = setup_log("popup-server")
     log.info("Loading config.yaml")
     config = load_config()
+    init_buoy_status_file(config)
 
     popups_pins = {}
     release_time = config["release_time_secs"]
