@@ -90,8 +90,15 @@ def setup_log(name, path="log", log_level="debug"):
 
 def load_config():
     """Loads the YAML configuration file."""
+    logger = logging.getLogger()
     with open("config.yaml", "r") as f:
-        return yaml.safe_load(f)
+        config = yaml.safe_load(f)
+    try:
+        assert config["whoami"] in ["popup-server", "blueboat"], "WhoAmI paremeter in config not valid!"
+    except Exception as e:
+        logger.error(e.__repr__())
+        raise e
+    return config
 
 
 def save_config(config):
@@ -248,6 +255,13 @@ def copy_and_delete_files(popup_id):
     for filename in os.listdir(SOURCE_FOLDER):
         os.remove(os.path.join(SOURCE_FOLDER, filename))
 
+def get_navigation_params():
+    """
+    Function to communicate the BlueBoat navigation system to the PopUp server API
+    """
+    # TODO: replace read from file with a proper communication with the BlueBoat navigation system
+    with open("navigation.yaml") as f:
+        return yaml.safe_load(f)
 
 @app.route('/control/shutdown', methods=['GET'])
 def shutdown_callback():
@@ -307,6 +321,35 @@ def get_permission_status(popup_id: str):
             "popup_id": popup_id,
             "permission": nopermission,
         }), status=200, mimetype="application/json")
+
+
+@app.route('/whoareyou', methods=['GET'])
+def whoareyou():
+    config = load_config()
+    return Response(json.dumps({
+        "id": config["whoami"],
+    }), status=200, mimetype="application/json")
+
+
+@app.route('/uploadpermission/<popup_id>', methods=['GET'])
+def upload_permission(popup_id: int):
+    logger = logging.getLogger()
+    navigation = get_navigation_params()
+    allow = navigation["allow"]
+    logger.info(f"PopUp Buoy {popup_id} requested permission to upload data, response: {allow}")
+    return Response(json.dumps({
+        "allow": allow,
+    }), status=200, mimetype="application/json")
+
+
+@app.route('/filelist/<popup_id>', methods=['PUT'])
+def upload_permission(popup_id: int):
+    # TODO: Change dummy list by a proper file and processing
+    logger = logging.getLogger()
+    logger.info(f"Processing list of files sent by popup {popup_id}")
+    return Response(json.dumps({
+        "tobesent": ["file1.txt", "file2.txt", "file3.txt"],
+    }), status=200, mimetype="application/json")
 
 
 if __name__ == "__main__":
