@@ -23,6 +23,11 @@ from flask import Flask, request, Response
 
 app = Flask(__name__)
 
+# Module-level logger; configured with file handler in __main__.
+# When run via `flask run` the basicConfig below is enough for stdout.
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)-7s: %(message)s')
+log = logging.getLogger("popup-server")
+
 # Color codes
 GRN = "\x1B[32m"
 RST = "\033[0m"
