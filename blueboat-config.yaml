@@ -1,0 +1,7 @@
+whoami: "blueboat"
+sync_time: 9
+ftp_upload_port: 2121
+max_release_time_secs: 20
+offset_seconds: 600
+release_time_secs: 1
+popup_parameters: []

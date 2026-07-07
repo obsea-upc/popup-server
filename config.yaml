@@ -1,4 +1,5 @@
-whoami: "popup-serdver" # Usually "blueboat" or "popup-server"
+whoami: "popup-server"
+sync_time: 9
 max_release_time_secs: 20
 offset_seconds: 600
 release_time_secs: 1
@@ -24,4 +25,3 @@ popup_parameters:
   released: false
   sleeptime_h: '24'
   sleeptime_m: '0'
-
