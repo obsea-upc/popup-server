@@ -63,17 +63,18 @@ def setup_log(name, path="log", log_level="debug"):
     if not os.path.exists(path):
         os.makedirs(path)
     filename = os.path.join(path, f"{name}.log")
-    logger = logging.getLogger()
-    logger.setLevel(getattr(logging, log_level.upper()))
+    root = logging.getLogger()
+    root.handlers.clear()  # remove handlers added by module-level basicConfig
+    root.setLevel(getattr(logging, log_level.upper()))
+    fmt = logging.Formatter('%(asctime)s.%(msecs)03d %(levelname)-7s: %(message)s', datefmt='%Y/%m/%d %H:%M:%S')
     handler = TimedRotatingFileHandler(filename, when="midnight", interval=1, backupCount=7)
-    handler.setFormatter(
-        logging.Formatter('%(asctime)s.%(msecs)03d %(levelname)-7s: %(message)s', datefmt='%Y/%m/%d %H:%M:%S'))
-    logger.addHandler(handler)
+    handler.setFormatter(fmt)
+    root.addHandler(handler)
     console_handler = logging.StreamHandler()
-    console_handler.setFormatter(handler.formatter)
-    logger.addHandler(console_handler)
-    logger.info(f"===== {name} initialized =====")
-    return logger
+    console_handler.setFormatter(fmt)
+    root.addHandler(console_handler)
+    root.info(f"===== {name} initialized =====")
+    return root
 
 
 # ---------------------------------------------------------------------------
